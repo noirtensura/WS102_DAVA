@@ -23,6 +23,10 @@ $allowed = match ($folder) {
         "SELECT 1 FROM landlord_profiles WHERE (government_id_path = ? OR business_permit_path = ?)
          AND (landlord_id = ? OR ? = 'admin') LIMIT 1",
         [$name, $name, $id, $role]
+    ) || (bool) scalar(
+        "SELECT 1 FROM landlord_permits WHERE document_path = ?
+         AND (landlord_id = ? OR ? = 'admin') LIMIT 1",
+        [$name, $id, $role]
     ),
     'payments' => (bool) scalar(
         "SELECT 1 FROM payments pay JOIN rent_invoices ri USING (invoice_id) JOIN leases l USING (lease_id)
@@ -49,6 +53,6 @@ header('Content-Type: ' . $mime[$extension]);
 header('Content-Length: ' . filesize($file));
 header('Cache-Control: private, no-store');
 if ($extension === 'pdf') {
-    header('Content-Disposition: attachment; filename="dayon-document.pdf"');
+    header('Content-Disposition: inline; filename="dayon-document.pdf"');
 }
 readfile($file);

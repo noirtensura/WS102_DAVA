@@ -13,18 +13,33 @@ $recentRequests = rows(
      WHERE rs.student_id = ? ORDER BY rs.created_at DESC, rs.reservation_id DESC LIMIT 4',
     [$studentId]
 );
+$savedPreview = rows(
+    "SELECT p.property_id, p.property_name, p.property_type, b.barangay_name, m.municipality_name, s.note,
+            (SELECT MIN(v.monthly_rate_per_bed) FROM vw_room_vacancy v WHERE v.property_id = p.property_id AND v.is_active = 1) AS min_rate,
+            (SELECT image_path FROM property_images WHERE property_id = p.property_id ORDER BY is_primary DESC, image_id LIMIT 1) AS cover
+     FROM bookmarks s JOIN properties p ON p.property_id = s.property_id
+     JOIN barangays b ON b.barangay_id = p.barangay_id JOIN municipalities m ON m.municipality_id = b.municipality_id
+     JOIN landlord_profiles lp ON lp.landlord_id = p.landlord_id JOIN users u ON u.user_id = p.landlord_id
+     WHERE s.student_id = ? AND p.approval_status = 'approved' AND lp.verification_status = 'verified' AND u.account_status = 'active'
+     ORDER BY s.created_at DESC LIMIT 3",
+    [$studentId]
+);
+$savedCount = student_bookmark_count($student);
+
 $pageTitle = 'Welcome, ' . $student['first_name'];
-$pageDescription = $lease ? '' : 'Find and compare boarding houses in ' . DAYON_LOCATION . '.';
+$pageDescription = $lease ? '' : 'Find, bookmark, and compare boarding houses & apartments across ' . DAYON_PROVINCE . '.';
 $pageActions = static function () use ($student, $lease): void {
     ?>
     <?php if ($lease): ?><a class="head-icon" href="<?= e(url('student/maintenance.php#advisories-heading')) ?>" aria-label="Property advisories"><?= icon('bell') ?></a><?php endif; ?>
-    <a class="avatar" href="<?= e(url('student/profile.php')) ?>" aria-label="My profile"><?= e(user_initials($student)) ?></a>
+    <a class="avatar" href="<?= e(url('student/profile.php')) ?>" aria-label="<?= e(user_initials($student) . ' · My profile') ?>"><?= e(user_initials($student)) ?></a>
     <?php
 };
 
 if ($lease) {
     $photo = scalar('SELECT image_path FROM property_images WHERE property_id = ? ORDER BY is_primary DESC, image_id LIMIT 1', [$lease['property_id']]);
-    $invoice = row('SELECT * FROM vw_invoice_summary WHERE lease_id = ? AND billing_month = ?', [$lease['lease_id'], date('Y-m-01')]);
+    $invoice = row("SELECT v.*, (SELECT COALESCE(SUM(p.amount_paid), 0) FROM payments p
+        WHERE p.invoice_id = v.invoice_id AND p.verification_status = 'pending') AS pending_payments
+        FROM vw_invoice_summary v WHERE v.lease_id = ? AND v.billing_month = ?", [$lease['lease_id'], date('Y-m-01')]);
     $charges = $invoice ? rows("SELECT charge_type, SUM(amount) AS amount FROM invoice_items WHERE invoice_id = ?
         GROUP BY charge_type ORDER BY FIELD(charge_type, 'base_rent', 'electricity', 'water', 'wifi', 'adjustment', 'penalty')", [$invoice['invoice_id']]) : [];
     $payments = rows('SELECT p.* FROM payments p JOIN rent_invoices ri USING (invoice_id) JOIN leases l USING (lease_id)
@@ -35,8 +50,8 @@ if ($lease) {
     $chargeLabels = ['base_rent' => 'Base Rent', 'electricity' => 'Electricity', 'water' => 'Water', 'wifi' => 'Wi-Fi', 'adjustment' => 'Adjustments', 'penalty' => 'Penalties'];
     $methods = ['cash' => 'Cash', 'gcash' => 'GCash', 'bank_transfer' => 'Bank Transfer'];
     $invoiceLink = 'student/billing.php' . ($invoice ? '#invoice-' . $invoice['invoice_id'] : '');
+    $canSubmitProof = $invoice && round((float) $invoice['balance_due'] - (float) $invoice['pending_payments'], 2) > 0;
 } else {
-    $savedCount = (int) scalar('SELECT COUNT(*) FROM bookmarks WHERE student_id = ?', [$studentId]);
     $pendingCount = (int) scalar("SELECT COUNT(*) FROM reservations WHERE student_id = ? AND status = 'pending'", [$studentId]);
 }
 require __DIR__ . '/../includes/portal_header.php';
@@ -81,16 +96,17 @@ require __DIR__ . '/../includes/portal_header.php';
                     <?php foreach ($charges as $charge): ?>
                         <div><dt><?= e($chargeLabels[$charge['charge_type']]) ?></dt><dd><?= e(money($charge['amount'])) ?></dd></div>
                     <?php endforeach; ?>
-                    <div class="total-line"><dt>Total Due</dt><dd><?= e(money($invoice['total_billed'])) ?></dd></div>
+                    <div class="total-line"><dt>Total billed</dt><dd><?= e(money($invoice['total_billed'])) ?></dd></div>
                     <div class="mini-line"><dt>Paid</dt><dd><?= e(money($invoice['total_paid'])) ?></dd></div>
-                    <div class="mini-line"><dt>Balance</dt><dd><?= e(money($invoice['balance_due'])) ?></dd></div>
+                    <div class="mini-line"><dt>Balance due</dt><dd><?= e(money($invoice['balance_due'])) ?></dd></div>
+                    <?php if ($invoice['pending_payments'] > 0): ?><div class="mini-line"><dt>Proof awaiting review</dt><dd><?= e(money($invoice['pending_payments'])) ?></dd></div><?php endif; ?>
                 </dl>
             <?php else: ?>
-                <p class="muted">Your landlord has yet to generate this month’s invoice.</p>
+                <p class="muted">Your landlord has yet to generate this month's invoice.</p>
             <?php endif; ?>
             <div class="panel-actions-bottom actions">
                 <a class="button secondary small" href="<?= e(url($invoiceLink)) ?>">View Full Ledger</a>
-                <?php if ($invoice && $invoice['balance_due'] > 0): ?><a class="button small" href="<?= e(url($invoiceLink)) ?>">Submit Payment Proof</a><?php endif; ?>
+                <?php if ($canSubmitProof): ?><a class="button small" href="<?= e(url('student/billing.php#payment-proof-' . $invoice['invoice_id'])) ?>">Submit Payment Proof</a><?php endif; ?>
             </div>
         </section>
     </div>
@@ -144,17 +160,34 @@ require __DIR__ . '/../includes/portal_header.php';
     </section>
 <?php else: ?>
     <div class="metric-grid three">
-        <article class="stat-card"><span>Saved Boarding Houses</span><strong><?= $savedCount ?></strong></article>
-        <article class="stat-card"><span>Pending Requests</span><strong><?= $pendingCount ?></strong></article>
-        <article class="stat-card"><span>Account Mode</span><strong>Finder</strong></article>
+        <a class="stat-card stat-link" href="<?= e(url('student/bookmarks.php')) ?>"><span><?= icon('bookmark') ?> Bookmarked Houses <?= icon('arrow') ?></span><strong><?= $savedCount ?></strong></a>
+        <a class="stat-card stat-link" href="<?= e(url('student/reservations.php')) ?>"><span><?= icon('calendar') ?> Pending Requests <?= icon('arrow') ?></span><strong><?= $pendingCount ?></strong></a>
+        <article class="stat-card"><span><?= icon('search') ?> Account Mode</span><strong>House Finder</strong></article>
     </div>
     <section class="panel">
-        <div class="panel-head"><h2>Your Housing Search</h2></div>
-        <p>Find a verified boarding house, compare your shortlist, or ask the landlord for a visit.</p>
-        <div class="panel-actions-bottom actions">
-            <a class="button" href="<?= e(url('index.php#listings')) ?>">Find Rooms</a>
-            <a class="button secondary" href="<?= e(url('student/bookmarks.php')) ?>">Saved &amp; Compare</a>
+        <div class="panel-head">
+            <h2>Bookmarked Boarding Houses &amp; Apartments</h2>
+            <div class="actions">
+                <a class="button small" href="<?= e(url('index.php#listings')) ?>">Browse Housing</a>
+                <?php if ($savedCount): ?><a class="button secondary small" href="<?= e(url('student/bookmarks.php')) ?>">Manage &amp; Compare (<?= $savedCount ?>)</a><?php endif; ?>
+            </div>
         </div>
+        <?php if (!$savedPreview): ?>
+            <p class="muted">Bookmark any boarding house or apartment while browsing so you can compare prices, utilities, and amenities here.</p>
+        <?php else: ?>
+            <div class="shortlist-grid">
+                <?php foreach ($savedPreview as $item): ?>
+                    <article class="panel shortlist-item">
+                        <?php if ($item['cover']): ?><img src="<?= e(media_url($item['cover'])) ?>" class="shortlist-cover" alt="<?= e($item['property_name']) ?>" loading="lazy"><?php endif; ?>
+                        <span class="badge"><?= e(property_type_label($item['property_type'] ?? 'boarding_house')) ?></span>
+                        <h3><a href="<?= e(url('property.php?id=' . $item['property_id'])) ?>"><?= e($item['property_name']) ?></a></h3>
+                        <p class="muted"><?= e($item['barangay_name']) ?>, <?= e($item['municipality_name']) ?></p>
+                        <?php if ($item['min_rate'] !== null): ?><p>From <strong><?= e(display_price($item['min_rate'])) ?></strong> / mo</p><?php endif; ?>
+                        <?php if (!empty($item['note'])): ?><p class="muted"><small>Note: <?= e($item['note']) ?></small></p><?php endif; ?>
+                    </article>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
     </section>
 <?php endif; ?>
 
@@ -165,7 +198,7 @@ require __DIR__ . '/../includes/portal_header.php';
         <p class="muted">Your visit and bed reservation requests will appear here.</p>
     <?php else: ?>
         <div class="table-wrap"><table>
-            <thead><tr><th scope="col">Boarding House</th><th scope="col">Request</th><th scope="col">Scheduled</th><th scope="col">Status</th></tr></thead>
+            <thead><tr><th scope="col">Property</th><th scope="col">Request</th><th scope="col">Scheduled</th><th scope="col">Status</th></tr></thead>
             <tbody>
                 <?php foreach ($recentRequests as $request): ?>
                     <tr>

@@ -167,10 +167,15 @@ function landlord_verified(int $landlordId): bool
 function landlord_verification_notice(): void
 {
     ?>
-    <div class="panel">
-        <h2>Verify your landlord account</h2>
-        <p class="muted">Admin approval unlocks requests, leases, billing and tenant services.</p>
-        <a class="button secondary small" href="<?= e(url('landlord/verification.php')) ?>">View verification</a>
+    <div class="panel notice-panel">
+        <div>
+            <h2>Account Pending Quick Admin Review</h2>
+            <p class="muted">You can already post your boarding house or apartment, upload photos, and add rooms. Once an administrator approves your account, tenant requests, leases, and billing unlock automatically. <strong>Business permits are not required.</strong></p>
+        </div>
+        <div class="actions">
+            <a class="button small" href="<?= e(url('landlord/properties.php?new=1#property-form')) ?>">Post a Property</a>
+            <a class="button secondary small" href="<?= e(url('landlord/verification.php')) ?>">Optional Antique Permits</a>
+        </div>
     </div>
     <?php
 }

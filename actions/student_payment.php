@@ -13,6 +13,7 @@ $method = student_post_text('payment_method');
 $amount = student_post_text('amount_paid');
 $reference = student_post_text('reference_number');
 $upload = null;
+unset($_SESSION['payment_draft']);
 
 try {
     if (!preg_match('/^\d{1,8}(?:\.\d{1,2})?$/D', $amount) || (float) $amount <= 0 ||
@@ -48,6 +49,14 @@ try {
         $pdo->rollBack();
     }
     remove_upload($upload);
+    if ($invoiceId) {
+        $_SESSION['payment_draft'] = [
+            'invoice_id' => $invoiceId,
+            'method' => substr($method, 0, 20),
+            'amount' => substr($amount, 0, 12),
+            'reference' => mb_substr($reference, 0, 100),
+        ];
+    }
     if ($error instanceof DomainException || $error instanceof InvalidArgumentException) {
         $message = $error->getMessage();
     } else {

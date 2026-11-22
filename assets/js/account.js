@@ -17,13 +17,22 @@ document.querySelectorAll('[data-password-toggle]').forEach((button) => {
 const loginForm = document.querySelector('[data-login-form]');
 if (loginForm) {
     const email = loginForm.elements.namedItem('email');
+    const password = loginForm.elements.namedItem('password');
     const remember = loginForm.elements.namedItem('remember_email');
     const portal = loginForm.elements.namedItem('portal') ? 'admin' : 'public';
     const storageKey = 'dayon:' + new URL('.', loginForm.action).pathname + ':remembered-email:' + portal;
 
+    document.querySelectorAll('[data-demo-fill]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            if (email) email.value = btn.dataset.demoFill;
+            if (password) password.value = 'DayonDemo2026!';
+            loginForm.querySelector('button[type="submit"]')?.focus();
+        });
+    });
+
     try {
         const storedEmail = localStorage.getItem(storageKey);
-        if (storedEmail) {
+        if (storedEmail && !email.value) {
             email.value = storedEmail;
             remember.checked = true;
         }

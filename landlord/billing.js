@@ -13,12 +13,14 @@ if (utilityForm) {
         ['water', fields.namedItem('water_amount')],
     ];
     const preview = utilityForm.querySelector('[data-utility-preview]');
+    const feedback = utilityForm.querySelector('[data-utility-error]');
     const meterInputs = utilityForm.querySelector('[data-meter-inputs]');
     const roomOptions = Array.from(room.options, option => option.cloneNode(true));
     const format = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
     let tenants = [];
     let request = 0;
     let message = '';
+    let scopeChecked = false;
 
     const renderSplit = () => {
         const previous = new Map(Array.from(meterInputs.querySelectorAll('input'), input => [input.name, input.value]));
@@ -64,6 +66,8 @@ if (utilityForm) {
     const loadTenants = async () => {
         const change = ++request;
         tenants = [];
+        scopeChecked = false;
+        feedback.textContent = '';
         message = property.value ? 'Checking active tenants…' : 'Choose a property to see the active tenants.';
         renderSplit();
         if (!property.value || !month.value) return;
@@ -75,6 +79,7 @@ if (utilityForm) {
             const result = await response.json();
             if (change !== request) return;
             tenants = result.tenants;
+            scopeChecked = true;
             message = tenants.length ? '' : 'No active tenants in this scope.';
         } catch {
             if (change !== request) return;
@@ -94,7 +99,22 @@ if (utilityForm) {
     property.addEventListener('change', () => { showRooms(); loadTenants(); });
     room.addEventListener('change', loadTenants);
     mode.addEventListener('change', renderSplit);
-    amounts.forEach(([, field]) => field.addEventListener('input', renderSplit));
+    amounts.forEach(([, field]) => field.addEventListener('input', () => {
+        feedback.textContent = '';
+        renderSplit();
+    }));
+    utilityForm.addEventListener('submit', (event) => {
+        if (!amounts.some(([, field]) => Number(field.value) > 0)) {
+            event.preventDefault();
+            feedback.textContent = 'Enter the electricity or water bill amount.';
+            amounts[0][1].focus();
+        } else if (scopeChecked && (!tenants.length || tenants.some((tenant) => !tenant.invoice_id))) {
+            event.preventDefault();
+            feedback.textContent = tenants.length
+                ? 'Generate the missing invoices before applying utility charges.'
+                : 'Choose a property or room with active tenants.';
+        }
+    });
     showRooms();
     loadTenants();
 }

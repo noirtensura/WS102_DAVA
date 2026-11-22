@@ -39,7 +39,6 @@ $showForm = $properties && (!$rooms || isset($_GET['new']) || $editing);
 $amenities = $showForm ? rows("SELECT * FROM amenities WHERE scope = 'room' ORDER BY amenity_name") : [];
 $selected = $editing ? array_column(rows('SELECT amenity_id FROM room_amenities WHERE room_id = ?', [$editId]), 'amenity_id') : [];
 $pageTitle = 'Live Occupancy Board';
-$pageScripts = ['landlord/forms.js'];
 $pageActions = static function () use ($properties, $boardPath, $boardMore, $verified, $available): void {
     ?>
     <?php if ($properties): ?><a class="button secondary" href="<?= e(url($boardPath . $boardMore . 'new=1#room-form')) ?>"><?= icon('plus') ?> New Room</a><?php endif; ?>
@@ -50,7 +49,7 @@ require __DIR__ . '/../includes/portal_header.php';
 ?>
 
 <?php if ($properties): ?>
-    <form method="get" class="occupancy-toolbar">
+    <form method="get" class="form-toolbar">
         <label>Property<select name="property_id"><option value="">All properties</option>
             <?php foreach ($properties as $property): ?>
                 <option value="<?= (int) $property['property_id'] ?>"<?= $propertyFilter === (int) $property['property_id'] ? ' selected' : '' ?>><?= e($property['property_name']) ?></option>
@@ -64,7 +63,11 @@ require __DIR__ . '/../includes/portal_header.php';
     <article class="stat-card"><span>Total Beds</span><strong><?= $capacity ?></strong></article>
     <article class="stat-card"><span>Occupied Beds</span><strong><?= $occupied ?></strong></article>
     <article class="stat-card"><span>Available Beds</span><strong class="metric-good"><?= $available ?></strong></article>
-    <article class="stat-card"><span>Pending Requests</span><strong<?= $pendingCount ? ' class="metric-watch"' : '' ?>><?= $pendingCount ?></strong></article>
+    <?php if ($pendingCount): ?>
+        <a class="stat-card stat-link" href="#board-requests"><span>Pending Requests <?= icon('arrow') ?></span><strong class="metric-watch"><?= $pendingCount ?></strong></a>
+    <?php else: ?>
+        <article class="stat-card"><span>Pending Requests</span><strong>0</strong></article>
+    <?php endif; ?>
 </div>
 
 <div class="occupancy-layout">
@@ -95,7 +98,7 @@ require __DIR__ . '/../includes/portal_header.php';
                             <?php endforeach; ?>
                             <?php for ($bed = 0; $bed < $showOpen; $bed++): ?>
                                 <?php if ($verified): ?>
-                                    <a class="bed-slot open" href="<?= e(url('landlord/leases.php?room=' . $roomId . '#lease-form')) ?>" aria-label="Assign a tenant to Room <?= e($room['room_number']) ?>"><?= icon('bed') ?> Open Bed</a>
+                                    <a class="bed-slot open" href="<?= e(url('landlord/leases.php?room=' . $roomId . '#lease-form')) ?>" aria-label="Open Bed <?= $bed + 1 ?> in Room <?= e($room['room_number']) ?>. Assign a tenant"><?= icon('bed') ?> Open Bed</a>
                                 <?php else: ?>
                                     <div class="bed-slot open"><?= icon('bed') ?> Open Bed</div>
                                 <?php endif; ?>
@@ -111,7 +114,7 @@ require __DIR__ . '/../includes/portal_header.php';
             </div>
         <?php endif; ?>
     </section>
-    <section class="panel" aria-labelledby="board-requests">
+    <section class="panel occupancy-requests<?= $pendingCount ? ' has-pending' : '' ?>" aria-labelledby="board-requests">
         <div class="panel-head"><h2 id="board-requests">Pending Requests</h2></div>
         <?php if (!$pending): ?><p class="muted">No requests need a decision for the selected properties.</p><?php endif; ?>
         <div class="pending-stack">

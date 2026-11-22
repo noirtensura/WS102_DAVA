@@ -7,6 +7,7 @@ const UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
 const DAYON_MUNICIPALITY = 'San Jose de Buenavista';
 const DAYON_PROVINCE = 'Antique';
 const DAYON_LOCATION = DAYON_MUNICIPALITY . ', ' . DAYON_PROVINCE;
+const DAYON_PROVINCE_LABEL = 'Antique, Philippines';
 const DAYON_CAMPUS = "St. Anthony's College";
 
 date_default_timezone_set('Asia/Manila');

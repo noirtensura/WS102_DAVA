@@ -54,7 +54,7 @@ function student_visible_property(int $propertyId): bool
          JOIN barangays b ON b.barangay_id = p.barangay_id JOIN municipalities m ON m.municipality_id = b.municipality_id
          WHERE p.property_id = ? AND p.approval_status = 'approved'
            AND lp.verification_status = 'verified' AND u.account_status = 'active'
-           AND m.municipality_name = ? AND m.province_name = ?",
-        [$propertyId, DAYON_MUNICIPALITY, DAYON_PROVINCE]
+           AND m.province_name = ?",
+        [$propertyId, DAYON_PROVINCE]
     );
 }

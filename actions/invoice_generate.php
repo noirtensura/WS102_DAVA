@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../landlord/_support.php';
 
-landlord_post(landlord_month('landlord/billing.php', field('month')), function (int $landlordId): string {
+landlord_post(landlord_month('landlord/billing.php', field('month')) . '#generate-monthly', function (int $landlordId): string {
     global $pdo;
     $month = field_date('month', 'Y-m');
     $endOfMonth = (new DateTimeImmutable($month . '-01'))->format('Y-m-t');

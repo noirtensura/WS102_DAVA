@@ -40,17 +40,18 @@ foreach ($invoices as $invoice) {
     }
 }
 $selectedUtilityProperty = (int) ($invoices[0]['property_id'] ?? (count($properties) === 1 ? $properties[0]['property_id'] : 0));
-$pageTitle = 'Billing & Utilities · ' . date('F Y', strtotime($month . '-01'));
+$pageTitle = 'Billing & Utilities';
+$pageDescription = date('F Y', strtotime($month . '-01')) . ' billing period';
 $pageScripts = ['landlord/billing.js'];
 $pageActions = static function () use ($month, $verified, $properties): void {
     ?>
     <div class="billing-toolbar">
         <form method="get" action="<?= e(url('landlord/billing.php')) ?>">
             <label><span class="visually-hidden">Billing Month</span><input name="month" type="month" value="<?= e($month) ?>" required></label>
-            <button class="button small secondary" type="submit">View Month</button>
+            <button class="button secondary" type="submit">View month</button>
         </form>
     </div>
-    <?php if ($verified && $properties): ?><button type="submit" class="button" form="generate-invoices"><?= icon('plus') ?> Generate Monthly Invoices</button><?php endif; ?>
+    <?php if ($verified && $properties): ?><a class="button" href="#generate-monthly"><?= icon('plus') ?> Generate invoices</a><?php endif; ?>
     <?php
 };
 require __DIR__ . '/../includes/portal_header.php';
@@ -62,7 +63,7 @@ require __DIR__ . '/../includes/portal_header.php';
     <article class="stat-card"><span>Overdue Accounts</span><strong<?= $overdue ? ' class="metric-watch"' : '' ?>><?= count($overdue) ?></strong></article>
 </div>
 <?php if ($verified && $properties): ?>
-<section class="panel">
+<section class="panel" id="utility-splitter">
     <div class="panel-head"><h2>Shared Utility Bill Splitter</h2></div>
     <form method="post" class="utility-grid" action="<?= e(url('actions/utility_add.php')) ?>" data-utility-form data-split-url="<?= e(url('api/calc_utility_split.php')) ?>">
         <?= csrf_field() ?>
@@ -78,24 +79,26 @@ require __DIR__ . '/../includes/portal_header.php';
                 <option value="<?= (int) $room['room_id'] ?>" data-property="<?= (int) $room['property_id'] ?>"><?= e($room['property_name']) ?> · Room <?= e($room['room_number']) ?></option>
             <?php endforeach; ?>
         </select></label>
-        <label>Split Method<select name="split_mode"><option value="flat">Flat Split (Equal)</option><option value="submetered">Sub-metered (by usage)</option></select></label>
+        <label>Split method<select name="split_mode"><option value="flat">Equal share</option><option value="submetered">By meter usage</option></select></label>
         <label>Electricity Bill (₱)<input name="electricity_amount" type="number" min="0" step="0.01" max="99999999.99" placeholder="0.00"></label>
         <label>Water Bill (₱)<input name="water_amount" type="number" min="0" step="0.01" max="99999999.99" placeholder="0.00"></label>
         <label>Bill Reference<input name="bill_reference" required maxlength="150" placeholder="Bill number or period"></label>
-        <p class="muted utility-preview span-2" data-utility-preview aria-live="polite"></p>
+        <p class="utility-preview span-2" data-utility-preview role="status"></p>
         <div class="form-grid span-2" data-meter-inputs></div>
         <noscript><p class="muted span-2">Equal splitting works with JavaScript disabled. Enable JavaScript to enter meter readings.</p></noscript>
-        <div class="actions span-2"><button type="submit" class="button">Apply Split to Selected Invoices</button></div>
+        <p class="utility-error span-2" data-utility-error role="alert"></p>
+        <div class="actions span-2"><button type="submit" class="button">Apply utility charges</button></div>
     </form>
-    <details class="billing-actions-panel">
-        <summary>Invoice Generation Settings</summary>
+    <details class="billing-actions-panel form-disclosure" id="generate-monthly">
+        <summary>Generate monthly rent invoices</summary>
         <form id="generate-invoices" method="post" class="form-grid" action="<?= e(url('actions/invoice_generate.php')) ?>">
             <?= csrf_field() ?>
             <input type="hidden" name="month" value="<?= e($month) ?>">
             <label>Property<select name="property_id"><option value="">All properties</option>
                 <?php foreach ($properties as $property): ?><option value="<?= (int) $property['property_id'] ?>"><?= e($property['property_name']) ?></option><?php endforeach; ?>
             </select></label>
-            <p class="muted">For each active lease, create a base-rent invoice for the selected month if one does not already exist.</p>
+            <div class="actions"><button type="submit" class="button"><?= icon('plus') ?> Generate invoices</button></div>
+            <p class="muted span-2">Dayon creates missing base-rent invoices for active leases in the selected month.</p>
         </form>
     </details>
 </section>
@@ -113,7 +116,7 @@ require __DIR__ . '/../includes/portal_header.php';
         </tfoot>
     </table></div>
     <?php if ($verified): ?>
-    <details>
+    <details class="form-disclosure">
         <summary>Add charge or adjustment</summary>
         <form method="post" class="form-grid" action="<?= e(url('actions/payment_action.php')) ?>">
             <?= csrf_field() ?><input type="hidden" name="month" value="<?= e($month) ?>"><input type="hidden" name="invoice_id" value="<?= e($invoiceId) ?>"><input type="hidden" name="operation" value="charge">

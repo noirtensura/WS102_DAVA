@@ -79,5 +79,9 @@ unset($_SESSION['register_values'], $_SESSION['csrf']);
 $_SESSION['user_id'] = $accountId;
 $_SESSION['role_name'] = $role;
 $_SESSION['full_name'] = $details['first_name'] . ' ' . $details['last_name'];
-flash('success', 'Your Dayon account is ready.');
-redirect($role === 'landlord' ? 'landlord/verification.php' : ($next ?: dashboard_path($role)));
+if ($role === 'landlord') {
+    flash('success', 'Welcome to Dayon! You can immediately add your boarding house or apartment and post photos. Antique permits are optional.');
+    redirect('landlord/dashboard.php');
+}
+flash('success', 'Your Dayon student account is ready. You can now bookmark and compare housing listings.');
+redirect($next ?: dashboard_path($role));

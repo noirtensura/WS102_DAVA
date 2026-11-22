@@ -1,6 +1,62 @@
 <?php
 declare(strict_types=1);
 
+const PROPERTY_TYPES = [
+    'boarding_house' => 'Boarding House',
+    'apartment' => 'Apartment',
+    'dormitory' => 'Dormitory',
+    'bedspace' => 'Bedspace',
+];
+
+const ANTIQUE_PERMIT_TYPES = [
+    'barangay_clearance' => ['Barangay Clearance / Permit', 'Barangay Hall (Punong Barangay)'],
+    'mayors_business_permit' => ["Mayor's / Business Permit (BPLO)", 'Municipal Business Permits & Licensing Office'],
+    'bfp_fsic' => ['Fire Safety Certificate (FSIC)', 'Bureau of Fire Protection – Antique'],
+    'sanitary_permit' => ['Municipal Sanitary Permit', 'Municipal Health Office (MHO)'],
+    'building_occupancy_permit' => ['Building / Occupancy Permit', 'Office of the Building Official (OBO)'],
+    'dti_registration' => ['DTI Business Name Registration', 'DTI Antique Provincial Office'],
+    'government_id' => ['Valid Government-Issued ID', 'Government Issuing Agency'],
+    'other_local_permit' => ['Other Local Antique Permit', 'Local Issuing Office in Antique'],
+];
+
+const WATER_BILLING_LABELS = [
+    'included' => 'Included in rent',
+    'submetered' => 'Sub-metered',
+    'shared' => 'Shared / split bill',
+    'fixed' => 'Fixed monthly fee',
+];
+
+const ELECTRICITY_BILLING_LABELS = [
+    'included' => 'Included in rent',
+    'submetered' => 'Sub-metered',
+    'shared' => 'Shared / split bill',
+    'own_meter' => 'Own ANTECO meter',
+];
+
+const WIFI_POLICY_LABELS = [
+    'free' => 'Free Wi-Fi included',
+    'paid' => 'Wi-Fi available (with fee)',
+    'tenant_own' => 'Fiber-ready (tenant setup)',
+    'none' => 'No Wi-Fi',
+];
+
+const FURNISHING_LABELS = [
+    'unfurnished' => 'Unfurnished',
+    'semi_furnished' => 'Semi-furnished',
+    'fully_furnished' => 'Fully furnished',
+];
+
+const PAYMENT_METHOD_OPTIONS = ['Cash', 'GCash', 'Maya', 'Bank Transfer'];
+
+const ANTIQUE_SCHOOL_PRESETS = [
+    "St. Anthony's College (San Jose)",
+    'University of Antique – Main Campus (Sibalom)',
+    'University of Antique – Hamtic Campus',
+    'University of Antique – Tario-Lim Campus (Tibiao)',
+    'Advance Central College (San Jose)',
+    'Antique National School (San Jose)',
+];
+
 function e(mixed $value): string
 {
     return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -74,6 +130,68 @@ function display_price(mixed $value): string
     return '₱' . number_format($amount, floor($amount) === $amount ? 0 : 2);
 }
 
+function property_type_label(?string $type): string
+{
+    return PROPERTY_TYPES[$type ?? 'boarding_house'] ?? 'Boarding House';
+}
+
+function permit_label(array $permit): string
+{
+    $type = (string) ($permit['permit_type'] ?? 'other_local_permit');
+    if ($type === 'other_local_permit' && !empty($permit['custom_permit_name'])) {
+        return (string) $permit['custom_permit_name'];
+    }
+    return ANTIQUE_PERMIT_TYPES[$type][0] ?? ucwords(str_replace('_', ' ', $type));
+}
+
+function parse_custom_details(?string $json): array
+{
+    if ($json === null || trim($json) === '') {
+        return [];
+    }
+    try {
+        $decoded = json_decode($json, true, 8, JSON_THROW_ON_ERROR);
+    } catch (Throwable) {
+        return [];
+    }
+    if (!is_array($decoded)) {
+        return [];
+    }
+    $clean = [];
+    foreach ($decoded as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        $label = trim((string) ($item['label'] ?? ''));
+        $value = trim((string) ($item['value'] ?? ''));
+        if ($label !== '' && $value !== '') {
+            $clean[] = ['label' => $label, 'value' => $value];
+        }
+    }
+    return $clean;
+}
+
+function property_verified_permits(int $propertyId, int $landlordId, bool $includeAllStatuses = false): array
+{
+    $statusClause = $includeAllStatuses ? '' : "AND verification_status = 'verified' AND permit_type <> 'government_id'";
+    return rows(
+        "SELECT permit_id, property_id, permit_type, custom_permit_name, permit_number, issuing_office,
+                issue_date, expiry_date, verification_status, notes
+         FROM landlord_permits
+         WHERE landlord_id = ? AND (property_id = ? OR property_id IS NULL) {$statusClause}
+         ORDER BY FIELD(verification_status, 'verified', 'submitted', 'rejected'), property_id IS NULL ASC, permit_id ASC",
+        [$landlordId, $propertyId]
+    );
+}
+
+function student_bookmark_count(?array $account): int
+{
+    if (($account['role_name'] ?? '') !== 'student') {
+        return 0;
+    }
+    return (int) scalar('SELECT COUNT(*) FROM bookmarks WHERE student_id = ?', [$account['user_id']]);
+}
+
 function flash(string $type, string $message): void
 {
     $_SESSION['flash'][] = ['type' => $type, 'message' => $message];
@@ -112,21 +230,14 @@ function upload_path(string $path): ?string
         : null;
 }
 
-function save_upload(string $field, string $folder, bool $required = false): ?string
+function store_uploaded_file(array $file, string $folder): string
 {
-    $file = $_FILES[$field] ?? null;
-    if (!$file || ($file['error'] ?? null) === UPLOAD_ERR_NO_FILE) {
-        if ($required) {
-            throw new DomainException('Choose a file to upload.');
-        }
-        return null;
-    }
     if (!in_array($folder, ['properties', 'verifications', 'payments', 'maintenance'], true)) {
         throw new LogicException('Unknown upload folder.');
     }
-    if ($file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])
-        || $file['size'] < 1 || $file['size'] > UPLOAD_MAX_BYTES) {
-        throw new DomainException('The file could not be uploaded. The size limit is 5 MB.');
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])
+        || ($file['size'] ?? 0) < 1 || ($file['size'] ?? 0) > UPLOAD_MAX_BYTES) {
+        throw new DomainException('The file could not be uploaded. The size limit is 5 MB per file.');
     }
     $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
     if ($folder === 'verifications') {
@@ -145,6 +256,60 @@ function save_upload(string $field, string $folder, bool $required = false): ?st
         throw new RuntimeException('Unable to store uploaded file.');
     }
     return $path;
+}
+
+function save_upload(string $field, string $folder, bool $required = false): ?string
+{
+    $file = $_FILES[$field] ?? null;
+    if (!$file || ($file['error'] ?? null) === UPLOAD_ERR_NO_FILE) {
+        if ($required) {
+            throw new DomainException('Choose a file to upload.');
+        }
+        return null;
+    }
+    return store_uploaded_file($file, $folder);
+}
+
+function save_uploads(string $field, string $folder, int $maxFiles = 12): array
+{
+    $bag = $_FILES[$field] ?? null;
+    if (!$bag || !isset($bag['name'])) {
+        return [];
+    }
+    if (!is_array($bag['name'])) {
+        $single = save_upload($field, $folder, false);
+        return $single ? [$single] : [];
+    }
+    $files = [];
+    $count = count($bag['name']);
+    for ($i = 0; $i < $count; $i++) {
+        $err = $bag['error'][$i] ?? UPLOAD_ERR_NO_FILE;
+        if ($err === UPLOAD_ERR_NO_FILE) {
+            continue;
+        }
+        $files[] = [
+            'name' => $bag['name'][$i] ?? '',
+            'type' => $bag['type'][$i] ?? '',
+            'tmp_name' => $bag['tmp_name'][$i] ?? '',
+            'error' => $err,
+            'size' => $bag['size'][$i] ?? 0,
+        ];
+    }
+    if (count($files) > $maxFiles) {
+        throw new DomainException("Upload up to {$maxFiles} photos at a time.");
+    }
+    $saved = [];
+    try {
+        foreach ($files as $file) {
+            $saved[] = store_uploaded_file($file, $folder);
+        }
+    } catch (Throwable $error) {
+        foreach ($saved as $path) {
+            remove_upload($path);
+        }
+        throw $error;
+    }
+    return $saved;
 }
 
 function remove_upload(?string $path): void
@@ -189,6 +354,7 @@ function icon(string $name, string $class = ''): string
         'eye-off' => '<path d="m3 3 18 18M10 6c.6-.1 1.3-.2 2-.2 6.2 0 10 6.2 10 6.2a15 15 0 0 1-3.1 3.5M6.2 7.7A17.5 17.5 0 0 0 2 12s3.8 6 10 6c1.4 0 2.6-.3 3.7-.8"/>',
         'card' => '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8" cy="11" r="2"/><path d="M5.5 16v-.5c0-1 1-1.5 2.5-1.5s2.5.5 2.5 1.5v.5M13 10h5m-5 4h4"/>',
         'home' => '<path d="m3 11 9-8 9 8M5 10v10h14V10m-9 10v-6h4v6"/>',
+        'building' => '<path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M16 11h4a1 1 0 0 1 1 1v9M2 21h20M8 7h1m3 0h1M8 11h1m3 0h1M8 15h1m3 0h1"/>',
         'grid' => '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
         'calendar' => '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/>',
         'wallet' => '<path d="M19 8V5H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V7m18 6h-5v2h5"/>',
@@ -199,10 +365,23 @@ function icon(string $name, string $class = ''): string
         'file' => '<path d="M14 3H6v18h12V7l-4-4Zm0 0v5h4m-9 5h6m-6 4h6"/>',
         'logout' => '<path d="M10 4H4v16h6m4-4 4-4-4-4m-6 4h12"/>',
         'menu' => '<path d="M4 6h16M4 12h16M4 18h16"/>',
+        'image' => '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 3-3 6 6"/>',
         'close' => '<path d="m6 6 12 12M18 6 6 18"/>',
         'check' => '<path d="m5 12 4 4L19 6"/>',
         'clock' => '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
         'map' => '<path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Zm6-3v15m6-12v15"/>',
+        'star' => '<path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.8 1-6.1-4.4-4.3 6.1-.9L12 3Z"/>',
+        'wifi' => '<path d="M5 12.6a10 10 0 0 1 14 0M8.5 16.1a5 5 0 0 1 7 0M2 8.8a15 15 0 0 1 20 0"/><circle cx="12" cy="19.5" r="1" fill="currentColor"/>',
+        'droplet' => '<path d="M12 2.7 6.3 9.3a7.5 7.5 0 1 0 11.4 0L12 2.7Z"/>',
+        'zap' => '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/>',
+        'phone' => '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.4 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z"/>',
+        'message' => '<path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z"/>',
+        'upload' => '<path d="M12 16V4m0 0-4 4m4-4 4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>',
+        'trash' => '<path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m-9 0h10l-1 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 6Z"/>',
+        'info' => '<circle cx="12" cy="12" r="9"/><path d="M12 16v-4m0-4h.01"/>',
+        'layers' => '<path d="m12 3 9 4.5-9 4.5-9-4.5L12 3Zm-9 9 9 4.5 9-4.5M3 16.5 12 21l9-4.5"/>',
+        'award' => '<circle cx="12" cy="8" r="5"/><path d="M8.5 12.7 7 22l5-2.5L17 22l-1.5-9.3"/>',
+        'external' => '<path d="M14 4h6v6m0-6L10 14M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
     ];
     return '<svg class="icon ' . e($class) . '" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">' . ($paths[$name] ?? '') . '</svg>';
 }

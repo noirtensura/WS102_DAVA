@@ -25,7 +25,6 @@ if ($verified && $editId) {
 }
 $pageTitle = 'Leases';
 $pageDescription = 'Activate move-ins, manage billing terms, and record move-outs and deposit refunds.';
-$pageScripts = ['landlord/forms.js'];
 require __DIR__ . '/../includes/portal_header.php';
 ?>
 <?php if (!$verified) landlord_verification_notice(); ?>

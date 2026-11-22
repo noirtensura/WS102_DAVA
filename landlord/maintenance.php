@@ -14,7 +14,6 @@ $advisories = rows('SELECT a.*, p.property_name FROM announcements a JOIN proper
 $reports = rows('SELECT q.report_id, q.status, q.reason, q.created_at, p.property_name FROM reports q JOIN properties p ON p.property_id = q.property_id WHERE p.landlord_id = ? ORDER BY q.created_at DESC, q.report_id DESC', [$landlordId]);
 $pageTitle = 'Maintenance & notices';
 $pageDescription = 'Respond to repair requests and publish advisories for current tenants.';
-$pageScripts = ['landlord/forms.js'];
 require __DIR__ . '/../includes/portal_header.php';
 ?>
 <?php if (!$verified) landlord_verification_notice(); ?>
@@ -69,7 +68,7 @@ require __DIR__ . '/../includes/portal_header.php';
                     <?= csrf_field() ?><input type="hidden" name="announcement_id" value="<?= e($advisory['announcement_id']) ?>">
                     <label class="form-field span-2">Title<input name="title" maxlength="150" required value="<?= e($advisory['title']) ?>"></label>
                     <label class="form-field span-2">Message<textarea name="message" maxlength="5000" rows="3" required><?= e($advisory['message']) ?></textarea></label>
-                    <div class="actions span-2"><button class="button small secondary" name="operation" value="update_announcement">Save advisory</button><button class="button small danger" name="operation" value="delete_announcement" data-confirm="Remove this advisory?" formnovalidate>Remove</button></div>
+                    <div class="actions span-2"><button class="button small secondary" name="operation" value="update_announcement">Save advisory</button><button class="button small danger" name="operation" value="delete_announcement" data-confirm="Remove this advisory from the property?" data-confirm-label="Remove advisory" formnovalidate>Remove</button></div>
                 </form>
             </details>
             <?php endif; ?>

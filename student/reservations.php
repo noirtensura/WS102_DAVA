@@ -8,11 +8,13 @@ $student = require_role('student');
 $lease = active_lease((int) $student['user_id']);
 $requests = rows(
     "SELECT rs.*, p.property_id, p.property_name, r.room_number,
-            (p.approval_status = 'approved' AND lp.verification_status = 'verified' AND u.account_status = 'active') AS visible
+            (p.approval_status = 'approved' AND lp.verification_status = 'verified' AND u.account_status = 'active'
+             AND m.province_name = ?) AS visible
      FROM reservations rs JOIN rooms r ON r.room_id = rs.room_id JOIN properties p ON p.property_id = r.property_id
      JOIN landlord_profiles lp ON lp.landlord_id = p.landlord_id JOIN users u ON u.user_id = p.landlord_id
+     JOIN barangays b ON b.barangay_id = p.barangay_id JOIN municipalities m ON m.municipality_id = b.municipality_id
      WHERE rs.student_id = ? ORDER BY rs.created_at DESC, rs.reservation_id DESC",
-    [$student['user_id']]
+    [DAYON_PROVINCE, $student['user_id']]
 );
 
 $pageTitle = 'My requests';
@@ -52,7 +54,7 @@ require __DIR__ . '/../includes/portal_header.php';
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="operation" value="cancel">
                                             <input type="hidden" name="reservation_id" value="<?= e($request['reservation_id']) ?>">
-                                            <button class="button secondary small" type="submit">Cancel request</button>
+                                            <button class="button secondary small" type="submit" data-confirm="Cancel this request for <?= e($request['property_name']) ?>?">Cancel request</button>
                                         </form>
                                     <?php else: ?>
                                         <span class="muted">—</span>

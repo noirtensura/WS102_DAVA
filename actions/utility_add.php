@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../landlord/_support.php';
 
-landlord_post(landlord_month('landlord/billing.php', field('month')), function (int $landlordId): string {
+landlord_post(landlord_month('landlord/billing.php', field('month')) . '#utility-splitter', function (int $landlordId): string {
     $month = field_date('month', 'Y-m');
     $mode = field_choice('split_mode', ['flat', 'submetered']);
     $reference = field_text('bill_reference', 'bill reference', 150);

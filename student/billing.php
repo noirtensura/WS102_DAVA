@@ -36,6 +36,8 @@ foreach ($invoices as $invoice) {
     }
 }
 $methods = ['cash' => 'Cash', 'gcash' => 'GCash', 'bank_transfer' => 'Bank transfer'];
+$paymentDraft = $_SESSION['payment_draft'] ?? [];
+unset($_SESSION['payment_draft']);
 $pageTitle = 'Rent and payments';
 $pageDescription = 'Review your itemized monthly bills, submit transfer proof, and open verified receipts.';
 $pageScripts = ['student/upload-preview.js'];
@@ -61,9 +63,10 @@ require __DIR__ . '/../includes/portal_header.php';
     $balance = (float) $invoice['balance_due'];
     $available = max(0, round($balance - ($pending[$id] ?? 0), 2));
     $currentInvoice = (int) $invoice['lease_id'] === (int) $lease['lease_id'];
+    $draft = ($paymentDraft['invoice_id'] ?? null) === $id ? $paymentDraft : [];
     ?>
     <section class="panel" id="invoice-<?= $id ?>" aria-labelledby="invoice-title-<?= $id ?>">
-        <div class="actions">
+        <div class="panel-head">
             <h2 id="invoice-title-<?= $id ?>"><?= e(student_billing_month($invoice['billing_month'])) ?></h2>
             <span class="badge <?= e($invoice['invoice_status']) ?>"><?= e(student_status($invoice['invoice_status'])) ?></span>
         </div>
@@ -110,15 +113,16 @@ require __DIR__ . '/../includes/portal_header.php';
         <?php endif; ?>
 
         <?php if ($currentInvoice && $available > 0): ?>
-            <details>
+            <details class="form-disclosure" id="payment-proof-<?= $id ?>"<?= $draft ? ' open' : '' ?>>
                 <summary>Submit payment proof</summary>
                 <form method="post" enctype="multipart/form-data" action="<?= e(url('actions/student_payment.php')) ?>">
                     <?= csrf_field() ?>
                     <input type="hidden" name="invoice_id" value="<?= $id ?>">
+                    <p class="muted">You can apply up to <?= e(money($available)) ?> after payments awaiting review.</p>
                     <div class="form-grid">
-                        <label class="form-field">Payment method<select name="payment_method" required><option value="gcash">GCash</option><option value="bank_transfer">Bank transfer</option></select></label>
-                        <label class="form-field">Amount paid (PHP)<input type="number" name="amount_paid" step="0.01" min="0.01" max="<?= e(number_format($available, 2, '.', '')) ?>" required></label>
-                        <label class="form-field">Transaction reference<input type="text" name="reference_number" maxlength="100" required></label>
+                        <label class="form-field">Payment method<select name="payment_method" required><option value="gcash">GCash</option><option value="bank_transfer"<?= ($draft['method'] ?? '') === 'bank_transfer' ? ' selected' : '' ?>>Bank transfer</option></select></label>
+                        <label class="form-field">Amount paid (PHP)<input type="number" name="amount_paid" step="0.01" min="0.01" max="<?= e(number_format($available, 2, '.', '')) ?>" value="<?= e($draft['amount'] ?? '') ?>" required></label>
+                        <label class="form-field">Transaction reference<input type="text" name="reference_number" maxlength="100" value="<?= e($draft['reference'] ?? '') ?>" required></label>
                         <label class="form-field">Receipt screenshot
                             <input type="file" name="proof" accept="image/jpeg,image/png,image/webp" required data-upload-preview="proof-preview-<?= $id ?>">
                             <small class="muted">JPEG, PNG or WebP, up to 5 MB.</small>

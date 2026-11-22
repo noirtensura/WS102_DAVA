@@ -23,15 +23,15 @@ require __DIR__ . '/../includes/portal_header.php';
         default => ['open' => 'Reopen report'],
     };
     ?>
-    <article class="panel grid-2">
-        <div>
-            <span class="badge"><?= e(admin_status_label($report['status'])) ?></span>
+    <article class="panel review-layout" id="report-<?= (int) $report['report_id'] ?>">
+        <div class="record-summary">
+            <span class="badge <?= e($report['status']) ?>"><?= e(admin_status_label($report['status'])) ?></span>
             <h2><?= e($report['property_name']) ?></h2>
             <p class="muted">Report #<?= e($report['report_id']) ?> · <?= e($report['reporter']) ?> · <?= e($report['created_at']) ?></p>
             <p><?= nl2br(e($report['reason'])) ?></p>
             <?php if ($report['reviewer']): ?><p class="muted">Reviewed by <?= e($report['reviewer']) ?></p><?php endif; ?>
         </div>
-        <div><?php admin_status_form('report', (int) $report['report_id'], $choices, true); ?></div>
+        <div class="record-decision"><h3>Report decision</h3><?php admin_status_form('report', (int) $report['report_id'], $choices, true); ?></div>
     </article>
 <?php endforeach; ?>
 <?php require __DIR__ . '/../includes/portal_footer.php'; ?>

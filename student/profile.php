@@ -56,7 +56,7 @@ require __DIR__ . '/../includes/portal_header.php';
                     <?= csrf_field() ?>
                     <input type="hidden" name="operation" value="contact_remove">
                     <input type="hidden" name="contact_id" value="<?= e($contact['contact_id']) ?>">
-                    <div class="actions"><button class="button danger small" type="submit">Remove contact</button></div>
+                    <div class="actions"><button class="button danger small" type="submit" data-confirm="Remove <?= e($contact['full_name']) ?> from your emergency contacts?">Remove contact</button></div>
                 </form>
             </details>
         <?php endforeach; ?>
