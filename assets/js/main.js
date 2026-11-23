@@ -182,3 +182,30 @@ document.addEventListener('submit', async (event) => {
         button.removeAttribute('aria-busy');
     }
 });
+
+// Optional Antique Permit form helper (moved from inline script for strict script-src 'self' CSP)
+const permitTypeSelect = document.querySelector('[data-permit-type]');
+if (permitTypeSelect) {
+    const customWrap = document.querySelector('[data-custom-permit-wrap]');
+    const officeInput = document.querySelector('[data-permit-office]');
+    const syncPermitFields = () => {
+        const opt = permitTypeSelect.selectedOptions[0];
+        if (customWrap) customWrap.hidden = permitTypeSelect.value !== 'other_local_permit';
+        if (officeInput && opt?.dataset.office) officeInput.placeholder = opt.dataset.office;
+    };
+    permitTypeSelect.addEventListener('change', syncPermitFields);
+    syncPermitFields();
+}
+
+// Duplicate-submission protection for standard POST forms on mobile & slow connections
+document.addEventListener('submit', (event) => {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement) || event.defaultPrevented) return;
+    if (form.method.toLowerCase() !== 'post' || form.hasAttribute('data-bookmark')) return;
+    if (form.dataset.submitting === 'true') {
+        event.preventDefault();
+        return;
+    }
+    form.dataset.submitting = 'true';
+    window.addEventListener('pageshow', () => { delete form.dataset.submitting; }, { once: true });
+});

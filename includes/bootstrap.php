@@ -11,6 +11,9 @@ ini_set('display_errors', '0');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 header('X-Frame-Options: SAMEORIGIN');
+header('Permissions-Policy: camera=(), microphone=(), payment=(), geolocation=(self)');
+header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; frame-src https://www.openstreetmap.org; frame-ancestors 'self'; base-uri 'self'; form-action 'self'");
+
 ini_set('session.use_strict_mode', '1');
 session_name('dayon_session');
 session_set_cookie_params([

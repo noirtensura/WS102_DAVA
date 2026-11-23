@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 $portalRole = $user['role_name'];
 $navBadges = [];
 if ($portalRole === 'admin') {

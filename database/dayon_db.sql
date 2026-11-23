@@ -125,6 +125,7 @@ CREATE TABLE properties (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_properties_search (approval_status, property_type, gender_policy, distance_to_campus_m),
+    INDEX idx_properties_featured_type (approval_status, is_featured, property_type, barangay_id),
     CONSTRAINT fk_property_landlord FOREIGN KEY (landlord_id) REFERENCES landlord_profiles(landlord_id),
     CONSTRAINT fk_property_barangay FOREIGN KEY (barangay_id) REFERENCES barangays(barangay_id),
     CONSTRAINT fk_property_approver FOREIGN KEY (approved_by) REFERENCES users(user_id) ON DELETE SET NULL
@@ -222,6 +223,7 @@ CREATE TABLE bookmarks (
     note VARCHAR(255) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (student_id, property_id),
+    INDEX idx_bookmarks_student_time (student_id, created_at),
     CONSTRAINT fk_bookmark_student FOREIGN KEY (student_id) REFERENCES student_profiles(student_id) ON DELETE CASCADE,
     CONSTRAINT fk_bookmark_property FOREIGN KEY (property_id) REFERENCES properties(property_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;

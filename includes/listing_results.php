@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 $activeSort = $searchMeta['sort'] ?? ($targetLocation ? 'nearest' : 'featured');
 $expanded = !empty($searchMeta['expanded']);
 $effectiveRadius = (int) ($searchMeta['radius_m'] ?? 0);

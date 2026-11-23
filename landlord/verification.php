@@ -144,20 +144,4 @@ require __DIR__ . '/../includes/portal_header.php';
         </table></div>
     <?php endif; ?>
 </section>
-
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-    const typeSelect = document.querySelector('[data-permit-type]');
-    const customWrap = document.querySelector('[data-custom-permit-wrap]');
-    const officeInput = document.querySelector('[data-permit-office]');
-    if (!typeSelect) return;
-    const sync = () => {
-        const opt = typeSelect.selectedOptions[0];
-        if (customWrap) customWrap.hidden = typeSelect.value !== 'other_local_permit';
-        if (officeInput && opt?.dataset.office) officeInput.placeholder = opt.dataset.office;
-    };
-    typeSelect.addEventListener('change', sync);
-    sync();
-});
-</script>
 <?php require __DIR__ . '/../includes/portal_footer.php'; ?>

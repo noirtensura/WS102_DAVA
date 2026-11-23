@@ -1,0 +1,66 @@
+name: Dayon CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: PHP Lint & Security/Schema Checks
+    runs-on: ubuntu-latest
+
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: 'yes'
+          MARIADB_DATABASE: dayon_db
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo, pdo_mysql, mbstring, fileinfo, curl
+          coverage: none
+
+      - name: Lint all PHP files
+        run: |
+          find . -path ./.git -prune -o -name "*.php" -print0 | xargs -0 -n1 php -l
+
+      - name: Import database schema and migrations
+        run: |
+          mysql -h 127.0.0.1 -u root < database/dayon_db.sql
+          mysql -h 127.0.0.1 -u root dayon_db < database/dayon_demo.sql
+          mysql -h 127.0.0.1 -u root dayon_db < database/antique_upgrade.sql
+          mysql -h 127.0.0.1 -u root dayon_db < database/location_coords_upgrade.sql
+          mysql -h 127.0.0.1 -u root dayon_db < database/realistic_seed.sql
+
+      - name: Start local PHP server and run verification suite
+        env:
+          DAYON_DB_HOST: 127.0.0.1
+          DAYON_DB_PORT: '3306'
+          DAYON_DB_NAME: dayon_db
+          DAYON_DB_USER: root
+          DAYON_DB_PASSWORD: ''
+          DAYON_BASE_PATH: ''
+          DAYON_TEST_URL: 'http://127.0.0.1:8080/'
+        run: |
+          php -S 127.0.0.1:8080 -t . >/tmp/dayon-server.log 2>&1 &
+          sleep 2
+          php tests/verify_system.php

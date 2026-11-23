@@ -1,4 +1,6 @@
-<?php if (empty($portalRole) && empty($authPage)): ?>
+<?php
+declare(strict_types=1);
+if (empty($portalRole) && empty($authPage)): ?>
 <footer class="site-footer">
     <div class="container footer-inner">
         <div class="footer-brand">

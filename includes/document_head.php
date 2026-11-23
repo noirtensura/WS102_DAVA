@@ -1,4 +1,6 @@
-<?php $pageTitle ??= 'Boarding Houses & Apartments in Antique'; ?>
+<?php
+declare(strict_types=1);
+$pageTitle ??= 'Boarding Houses & Apartments in Antique'; ?>
 <!doctype html>
 <html lang="en">
 <head>

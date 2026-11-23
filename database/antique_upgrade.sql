@@ -41,7 +41,11 @@ ALTER TABLE property_images
 
 -- 3. Optional personal note on student bookmarks
 ALTER TABLE bookmarks
-    ADD COLUMN IF NOT EXISTS note VARCHAR(255) NULL AFTER property_id;
+    ADD COLUMN IF NOT EXISTS note VARCHAR(255) NULL AFTER property_id,
+    ADD INDEX IF NOT EXISTS idx_bookmarks_student_time (student_id, created_at);
+
+ALTER TABLE properties
+    ADD INDEX IF NOT EXISTS idx_properties_featured_type (approval_status, is_featured, property_type, barangay_id);
 
 -- 4. Optional Antique permits & compliance documents table (none required)
 CREATE TABLE IF NOT EXISTS landlord_permits (

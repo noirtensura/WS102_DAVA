@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 $savedTotal = student_bookmark_count($user);
 require __DIR__ . '/document_head.php';
 ?>
