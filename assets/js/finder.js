@@ -1,55 +1,107 @@
 'use strict';
 
+// 1. Step-1 Location Picker (Municipality -> Barangay cascading, GPS, Change Location drawer)
+const stepForm = document.querySelector('[data-location-step-form]');
+if (stepForm) {
+    const mun = stepForm.querySelector('[data-step-municipality]');
+    const brgy = stepForm.querySelector('[data-step-barangay]');
+    if (mun && brgy) {
+        const allOptions = Array.from(brgy.options, (opt) => opt.cloneNode(true));
+        const syncStepBarangays = (keepValue = true) => {
+            const selectedMun = mun.value;
+            const current = keepValue ? brgy.value : '';
+            brgy.replaceChildren(
+                ...allOptions
+                    .filter((opt) => !opt.value || !selectedMun || opt.dataset.municipality === selectedMun)
+                    .map((opt) => opt.cloneNode(true))
+            );
+            if (current && Array.from(brgy.options).some((o) => o.value === current)) {
+                brgy.value = current;
+            } else {
+                brgy.value = '';
+            }
+        };
+        syncStepBarangays(true);
+        mun.addEventListener('change', () => syncStepBarangays(false));
+    }
+}
+
+const toggleLocationBtn = document.querySelector('[data-toggle-location-panel]');
+const locationCard = document.getElementById('location-selector-card');
+if (toggleLocationBtn && locationCard) {
+    toggleLocationBtn.addEventListener('click', () => {
+        const opening = locationCard.hidden;
+        locationCard.hidden = !opening;
+        toggleLocationBtn.setAttribute('aria-expanded', String(opening));
+        if (opening) locationCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+}
+
+const gpsButton = document.querySelector('[data-use-gps]');
+const gpsStatus = document.querySelector('[data-gps-status]');
+if (gpsButton) {
+    gpsButton.addEventListener('click', () => {
+        if (!navigator.geolocation) {
+            if (gpsStatus) {
+                gpsStatus.hidden = false;
+                gpsStatus.textContent = 'Geolocation is not supported by this browser. Please select a campus or town below.';
+            }
+            return;
+        }
+        gpsButton.disabled = true;
+        if (gpsStatus) {
+            gpsStatus.hidden = false;
+            gpsStatus.textContent = 'Detecting your location to find the nearest boarding houses & apartments...';
+        }
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const url = new URL('index.php', location.href);
+                url.searchParams.set('lat', pos.coords.latitude.toFixed(6));
+                url.searchParams.set('lng', pos.coords.longitude.toFixed(6));
+                url.searchParams.set('radius', '5000');
+                url.hash = '#listings';
+                window.location.assign(url);
+            },
+            () => {
+                gpsButton.disabled = false;
+                if (gpsStatus) {
+                    gpsStatus.hidden = false;
+                    gpsStatus.textContent = 'Location permission was declined or unavailable. Choose a campus or Antique town below instead.';
+                }
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    });
+}
+
+// 2. Step-2 Refine Nearest Results (AJAX live filtering & sorting)
 const finderForm = document.querySelector('#finder-form');
 const finderResults = document.querySelector('[data-finder-results]');
 
 if (finderForm && finderResults && window.fetch && window.AbortController) {
     const status = document.getElementById('finder-status');
     const filterMenu = finderForm.querySelector('.filter-menu');
-    const municipalitySelect = finderForm.querySelector('[data-finder-municipality]');
-    const barangaySelect = finderForm.querySelector('[data-finder-barangay]');
-    const allBarangays = barangaySelect ? Array.from(barangaySelect.options, (opt) => opt.cloneNode(true)) : [];
-    const advancedSelects = Array.from(finderForm.querySelectorAll('.advanced-content select'));
     let latestRequest;
     let searchTimer;
-
-    function syncAdvancedSelects() {
-        advancedSelects.forEach((sel) => sel.toggleAttribute('data-chosen', Boolean(sel.value)));
-    }
-
-    function syncBarangays(keepValue = true) {
-        if (!municipalitySelect || !barangaySelect) return;
-        const mun = municipalitySelect.value;
-        const current = keepValue ? barangaySelect.value : '';
-        barangaySelect.replaceChildren(
-            ...allBarangays
-                .filter((opt) => !opt.value || !mun || opt.dataset.municipality === mun)
-                .map((opt) => opt.cloneNode(true))
-        );
-        if (current && Array.from(barangaySelect.options).some((o) => o.value === current)) {
-            barangaySelect.value = current;
-        } else {
-            barangaySelect.value = '';
-        }
-    }
 
     function locationForFilters() {
         const url = new URL(finderForm.action);
         for (const [key, value] of new FormData(finderForm)) {
             const trimmed = typeof value === 'string' ? value.trim() : '';
-            if (trimmed && !(key === 'sort' && trimmed === 'featured')) url.searchParams.append(key, trimmed);
+            if (trimmed !== '') url.searchParams.append(key, trimmed);
         }
         return url;
     }
 
     function restoreFilters(params) {
-        if (municipalitySelect) {
-            municipalitySelect.value = params.get('municipality') ?? '';
-            syncBarangays(false);
-        }
         for (const control of finderForm.elements) {
+            if (control.type === 'hidden') continue;
             if (control instanceof HTMLSelectElement) {
-                control.value = params.get(control.name) ?? (control.name === 'sort' ? 'featured' : '');
+                if (params.has(control.name)) {
+                    control.value = params.get(control.name);
+                } else if (control.name === 'budget' || control.name === 'room_type' || control.name === 'gender') {
+                    control.value = '';
+                }
             } else if (control.type === 'checkbox') {
                 control.checked = params.getAll(control.name).includes(control.value);
             } else if (control.type === 'radio') {
@@ -58,7 +110,6 @@ if (finderForm && finderResults && window.fetch && window.AbortController) {
                 control.value = params.get(control.name) ?? '';
             }
         }
-        syncAdvancedSelects();
     }
 
     async function refreshFinder({ scroll = false, updateHistory = true } = {}) {
@@ -79,7 +130,7 @@ if (finderForm && finderResults && window.fetch && window.AbortController) {
 
             const restoreSortFocus = document.activeElement?.matches('[data-finder-sort]');
             finderResults.innerHTML = content;
-            status.textContent = finderResults.querySelector('[data-finder-count]')?.textContent.trim() ?? '';
+            if (status) status.textContent = finderResults.querySelector('[data-finder-count]')?.textContent.trim() ?? '';
             if (updateHistory && url.href !== location.href) history.pushState(null, '', url);
             if (restoreSortFocus) finderResults.querySelector('[data-finder-sort]')?.focus({ preventScroll: true });
             if (scroll) {
@@ -94,35 +145,28 @@ if (finderForm && finderResults && window.fetch && window.AbortController) {
         }
     }
 
-    syncBarangays(true);
-    syncAdvancedSelects();
-
     finderForm.addEventListener('submit', (event) => {
         event.preventDefault();
         refreshFinder({ scroll: true });
     });
 
-    municipalitySelect?.addEventListener('change', () => {
-        syncBarangays(false);
-        refreshFinder();
+    ['budget', 'room_type', 'gender'].forEach((name) => {
+        finderForm.elements.namedItem(name)?.addEventListener('change', () => refreshFinder());
     });
-    barangaySelect?.addEventListener('change', () => refreshFinder());
-    finderForm.elements.namedItem('budget')?.addEventListener('change', () => refreshFinder());
     finderForm.elements.namedItem('q')?.addEventListener('input', () => {
         clearTimeout(searchTimer);
-        searchTimer = setTimeout(() => refreshFinder(), 320);
+        searchTimer = setTimeout(() => refreshFinder(), 300);
     });
-    advancedSelects.forEach((sel) => sel.addEventListener('change', syncAdvancedSelects));
 
     document.addEventListener('change', (event) => {
         if (event.target.matches('[data-finder-sort], [data-quick-filter]')) refreshFinder();
     });
     document.addEventListener('click', (event) => {
         if (event.button || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-        if (event.target.closest('[data-clear-filters]')) {
+        const clearRefine = event.target.closest('[data-clear-refine]');
+        if (clearRefine) {
             event.preventDefault();
-            const sort = finderForm.elements.namedItem('sort')?.value || 'featured';
-            restoreFilters(new URLSearchParams({ sort }));
+            restoreFilters(new URL(clearRefine.href).searchParams);
             refreshFinder({ scroll: true });
         } else if (filterMenu?.open && !filterMenu.contains(event.target)) {
             filterMenu.open = false;

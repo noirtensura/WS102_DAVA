@@ -68,6 +68,8 @@ CREATE TABLE municipalities (
     municipality_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     municipality_name VARCHAR(100) NOT NULL,
     province_name VARCHAR(100) NOT NULL,
+    latitude DECIMAL(10, 7) NULL,
+    longitude DECIMAL(10, 7) NULL,
     UNIQUE KEY uq_municipality_province (municipality_name, province_name)
 ) ENGINE=InnoDB;
 
@@ -75,6 +77,8 @@ CREATE TABLE barangays (
     barangay_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     municipality_id INT UNSIGNED NOT NULL,
     barangay_name VARCHAR(100) NOT NULL,
+    latitude DECIMAL(10, 7) NULL,
+    longitude DECIMAL(10, 7) NULL,
     UNIQUE KEY uq_barangay_municipality (municipality_id, barangay_name),
     CONSTRAINT fk_barangay_municipality FOREIGN KEY (municipality_id) REFERENCES municipalities(municipality_id)
 ) ENGINE=InnoDB;
